@@ -3,18 +3,6 @@ import re
 from .ai_service import ai_service
 
 
-TRANSLATE_SYSTEM_PROMPT = """你是一个专业的技术文档翻译专家。请将Markdown格式的README内容翻译成中文。
-
-要求：
-1. 保留所有Markdown格式（标题、列表、代码块、链接等）
-2. 代码块内容不翻译（```内的代码保持原样）
-3. 链接URL保持不变
-4. 图片链接保持不变
-5. 技术术语首次出现时保留英文，格式：「中文翻译（English）」
-6. 翻译要自然流畅，符合中文表达习惯
-7. 只输出翻译后的内容，不要添加任何解释"""
-
-
 class TranslateService:
     """翻译服务"""
 
@@ -26,12 +14,22 @@ class TranslateService:
         # 1. 预处理：提取代码块
         code_blocks, processed_content = self._extract_code_blocks(content)
 
-        # 2. 翻译
-        translated = await self.ai.generate_with_system(
-            system_prompt=TRANSLATE_SYSTEM_PROMPT,
-            user_prompt=f"请翻译以下README内容：\n\n{processed_content}",
-            max_tokens=8192
-        )
+        # 2. 翻译 - 使用generate_raw方法，不强制JSON格式
+        prompt = f"""你是一个专业的技术文档翻译专家。请将以下Markdown格式的README内容翻译成中文。
+
+翻译要求：
+1. 保留所有Markdown格式（标题、列表、代码块、链接等）
+2. 代码块内容不翻译（```内的代码保持原样）
+3. 链接URL保持不变
+4. 图片链接保持不变
+5. 技术术语首次出现时保留英文，格式：「中文翻译（English）」
+6. 翻译要自然流畅，符合中文表达习惯
+7. 只输出翻译后的内容，不要添加任何解释或JSON包装
+
+待翻译内容：
+{processed_content}"""
+
+        translated = await self.ai.generate_raw(prompt, max_tokens=8192)
 
         # 3. 后处理：还原代码块
         result = self._restore_code_blocks(translated, code_blocks)

@@ -60,7 +60,7 @@ class GitHubService:
             "stars": data.get("stargazers_count", 0),
             "forks": data.get("forks_count", 0),
             "language": data.get("language"),
-            "updated_at": data.get("updated_at"),
+            "updated_at": data.get("pushed_at") or data.get("updated_at"),
             "topics": data.get("topics", [])
         }
 

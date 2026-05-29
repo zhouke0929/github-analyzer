@@ -1,71 +1,8 @@
 """技术栈分析服务"""
 import json
+import re
 from .github_service import github_service
 from .ai_service import ai_service
-
-
-FRAMEWORK_MAP = {
-    # JavaScript/TypeScript
-    "react": ("React", "前端框架"),
-    "vue": ("Vue.js", "前端框架"),
-    "next": ("Next.js", "全栈框架"),
-    "nuxt": ("Nuxt.js", "全栈框架"),
-    "angular": ("Angular", "前端框架"),
-    "svelte": ("Svelte", "前端框架"),
-    "express": ("Express", "后端框架"),
-    "koa": ("Koa", "后端框架"),
-    "fastify": ("Fastify", "后端框架"),
-    "nestjs": ("NestJS", "后端框架"),
-    # Python
-    "fastapi": ("FastAPI", "后端框架"),
-    "django": ("Django", "后端框架"),
-    "flask": ("Flask", "后端框架"),
-    "tornado": ("Tornado", "后端框架"),
-    # Go
-    "gin": ("Gin", "后端框架"),
-    "echo": ("Echo", "后端框架"),
-    "fiber": ("Fiber", "后端框架"),
-    # Java
-    "spring-boot": ("Spring Boot", "后端框架"),
-    "spring": ("Spring", "后端框架"),
-}
-
-TOOL_MAP = {
-    # 测试
-    "jest": ("Jest", "测试框架"),
-    "mocha": ("Mocha", "测试框架"),
-    "pytest": ("Pytest", "测试框架"),
-    "vitest": ("Vitest", "测试框架"),
-    "cypress": ("Cypress", "测试框架"),
-    # 构建
-    "webpack": ("Webpack", "构建工具"),
-    "vite": ("Vite", "构建工具"),
-    "rollup": ("Rollup", "构建工具"),
-    "esbuild": ("ESBuild", "构建工具"),
-    "turbo": ("Turborepo", "构建工具"),
-    # 代码规范
-    "eslint": ("ESLint", "代码规范"),
-    "prettier": ("Prettier", "代码规范"),
-    "black": ("Black", "代码规范"),
-    "ruff": ("Ruff", "代码规范"),
-    # 容器化
-    "docker": ("Docker", "容器化"),
-    "kubernetes": ("Kubernetes", "容器编排"),
-}
-
-ANALYSIS_PROMPT = """你是一个技术栈分析专家。请分析以下项目的依赖信息，提取出框架和工具。
-
-请以JSON格式返回，格式如下：
-{
-  "frameworks": [{"name": "框架名", "version": "版本号", "category": "分类"}],
-  "tools": [{"name": "工具名", "category": "分类"}]
-}
-
-分类说明：
-- 框架分类：前端框架、后端框架、全栈框架、移动端框架
-- 工具分类：测试框架、构建工具、代码规范、容器化、数据库、其他
-
-只输出JSON，不要添加其他内容。"""
 
 
 class TechStackService:
@@ -86,8 +23,11 @@ class TechStackService:
         # 3. 计算语言百分比
         languages = self._calculate_language_percentages(languages_raw)
 
-        # 4. 识别框架和工具
-        frameworks, tools = self._detect_from_dependencies(dependencies)
+        # 4. 提取依赖名称
+        deps_list = self._extract_dependencies(dependencies)
+
+        # 5. 调用AI识别框架和工具
+        frameworks, tools = await self._detect_with_ai(deps_list)
 
         return {
             "languages": languages,
@@ -95,7 +35,7 @@ class TechStackService:
             "tools": tools
         }
 
-    def _calculate_language_percentages(self, languages: dict) -> list[dict]:
+    def _calculate_language_percentages(self, languages: dict) -> list:
         """计算语言百分比"""
         if not languages:
             return []
@@ -109,7 +49,7 @@ class TechStackService:
             percentage = round((bytes_count / total) * 100, 1)
             result.append({"name": lang, "percentage": percentage})
 
-        return result[:10]  # 最多返回10种语言
+        return result[:10]
 
     async def _get_dependencies(self, owner: str, repo: str) -> dict:
         """获取依赖文件内容"""
@@ -127,51 +67,119 @@ class TechStackService:
 
         return result
 
-    def _detect_from_dependencies(self, dependencies: dict) -> tuple[list[dict], list[dict]]:
-        """从依赖文件中检测框架和工具"""
-        frameworks = []
-        tools = []
+    def _extract_dependencies(self, dependencies: dict) -> list:
+        """从依赖文件中提取依赖名称和版本"""
+        deps = []
 
         # 处理 package.json
         if "package.json" in dependencies:
             try:
                 pkg = json.loads(dependencies["package.json"])
-                deps = {}
-                deps.update(pkg.get("dependencies", {}))
-                deps.update(pkg.get("devDependencies", {}))
-
-                for pkg_name, version in deps.items():
-                    pkg_lower = pkg_name.lower()
-                    if pkg_lower in FRAMEWORK_MAP:
-                        name, category = FRAMEWORK_MAP[pkg_lower]
-                        frameworks.append({
-                            "name": name,
-                            "version": version.lstrip("^~>="),
-                            "category": category
-                        })
-                    elif pkg_lower in TOOL_MAP:
-                        name, category = TOOL_MAP[pkg_lower]
-                        tools.append({"name": name, "category": category})
+                for name, version in pkg.get("dependencies", {}).items():
+                    deps.append({"name": name, "version": version, "type": "production"})
+                for name, version in pkg.get("devDependencies", {}).items():
+                    deps.append({"name": name, "version": version, "type": "dev"})
             except json.JSONDecodeError:
                 pass
 
         # 处理 requirements.txt
         if "requirements.txt" in dependencies:
-            content = dependencies["requirements.txt"]
-            for line in content.split("\n"):
-                line = line.strip().split("==")[0].split(">=")[0].split("<=")[0].strip().lower()
-                if line in FRAMEWORK_MAP:
-                    name, category = FRAMEWORK_MAP[line]
-                    frameworks.append({"name": name, "version": "", "category": category})
-                elif line in TOOL_MAP:
-                    name, category = TOOL_MAP[line]
-                    tools.append({"name": name, "category": category})
+            for line in dependencies["requirements.txt"].split("\n"):
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    # 提取包名和版本
+                    match = re.match(r'^([a-zA-Z0-9_-]+)\s*(.*)', line)
+                    if match:
+                        name = match.group(1)
+                        version = match.group(2).strip()
+                        deps.append({"name": name, "version": version, "type": "production"})
 
-        # 去重
-        frameworks = list({f["name"]: f for f in frameworks}.values())
-        tools = list({t["name"]: t for t in tools}.values())
+        # 处理 pyproject.toml
+        if "pyproject.toml" in dependencies:
+            content = dependencies["pyproject.toml"]
+            in_deps = False
+            for line in content.split('\n'):
+                stripped = line.strip()
+                if stripped.startswith('dependencies') and '=' in stripped:
+                    in_deps = True
+                    if '[' in stripped and ']' in stripped:
+                        match = re.search(r'\[(.*?)\]', stripped)
+                        if match:
+                            for item in match.group(1).split(','):
+                                item = item.strip().strip('"').strip("'")
+                                if item:
+                                    pkg_match = re.match(r'^([a-zA-Z0-9_-]+)\s*(.*)', item)
+                                    if pkg_match:
+                                        deps.append({"name": pkg_match.group(1), "version": pkg_match.group(2).strip(), "type": "production"})
+                        in_deps = False
+                    continue
+                if in_deps:
+                    if stripped.startswith(']'):
+                        in_deps = False
+                        continue
+                    if stripped.startswith('"') or stripped.startswith("'"):
+                        item = stripped.strip('"').strip("'").rstrip(',')
+                        if item:
+                            pkg_match = re.match(r'^([a-zA-Z0-9_-]+)\s*(.*)', item)
+                            if pkg_match:
+                                deps.append({"name": pkg_match.group(1), "version": pkg_match.group(2).strip(), "type": "production"})
 
-        return frameworks, tools
+        # 处理 go.mod
+        if "go.mod" in dependencies:
+            for line in dependencies["go.mod"].split("\n"):
+                line = line.strip()
+                if line.startswith("require"):
+                    continue
+                match = re.match(r'^([^\s]+)\s+(v[\d.]+)', line)
+                if match:
+                    deps.append({"name": match.group(1), "version": match.group(2), "type": "production"})
+
+        # 去重并限制数量
+        seen = set()
+        unique_deps = []
+        for dep in deps:
+            key = dep["name"].lower()
+            if key not in seen:
+                seen.add(key)
+                unique_deps.append(dep)
+
+        return unique_deps[:50]  # 最多返回50个依赖
+
+    async def _detect_with_ai(self, deps_list: list) -> tuple:
+        """调用AI识别框架和工具"""
+        if not deps_list:
+            return [], []
+
+        # 构建简洁的依赖列表文本
+        deps_text = ", ".join([f"{d['name']}{d['version']}" for d in deps_list])
+
+        prompt = f"""分析以下依赖列表，识别框架和工具。
+
+依赖：{deps_text}
+
+返回JSON格式：
+{{"frameworks": [{{"name": "框架名", "version": "版本号", "category": "分类"}}], "tools": [{{"name": "工具名", "category": "分类"}}]}}
+
+分类：前端框架、后端框架、全栈框架、模板引擎、ORM框架、数据验证、UI框架、测试框架、构建工具、代码规范、容器化、数据库、命令行工具、HTTP客户端、其他
+只输出JSON，只返回主要的框架和工具。"""
+
+        try:
+            # 使用generate_json直接获取解析后的字典
+            data = await self.ai.generate_json(prompt, max_tokens=500)
+            if not data:
+                # 后备：尝试用generate方法
+                response = await self.ai.generate(prompt, max_tokens=500)
+                if isinstance(response, dict):
+                    data = response
+                elif isinstance(response, str):
+                    try:
+                        data = json.loads(response)
+                    except json.JSONDecodeError:
+                        return [], []
+            return data.get("frameworks", []), data.get("tools", [])
+        except Exception as e:
+            print(f"[技术栈AI分析错误] {type(e).__name__}: {str(e)}")
+            return [], []
 
 
 # 全局实例

@@ -23,24 +23,23 @@ async def run_analysis(analysis_id: str, owner: str, repo: str, repo_info: dict)
     try:
         print(f"[分析] 开始分析 {owner}/{repo}，ID: {analysis_id}")
 
-        # 更新状态为处理中
-        db.update_status(analysis_id, "processing")
+        # 阶段1：获取README + 启动技术栈分析
+        db.update_status(analysis_id, "processing", current_step="readme")
 
-        # 并发执行三个分析任务
         print(f"[分析] 获取README和分析技术栈...")
         readme_task = github_service.get_readme(owner, repo)
         tech_stack_task = tech_stack_service.analyze(owner, repo)
 
-        # 等待获取README
         readme_content = await readme_task
         print(f"[分析] README获取成功，长度: {len(readme_content)}")
 
-        # 翻译和摘要依赖README，并发执行
+        # 阶段2：翻译README + 生成摘要
+        db.update_status(analysis_id, "processing", current_step="translate")
+
         print(f"[分析] 开始翻译和生成摘要...")
         translate_task = translate_service.translate_readme(readme_content)
         summary_task = summary_service.generate_summary(repo_info, readme_content)
 
-        # 等待所有任务完成
         readme_cn, summary, tech_stack = await asyncio.gather(
             translate_task,
             summary_task,
@@ -59,8 +58,8 @@ async def run_analysis(analysis_id: str, owner: str, repo: str, repo_info: dict)
             tech_stack=tech_stack
         )
 
-        # 更新状态为完成
-        db.update_status(analysis_id, "completed")
+        # 阶段3：完成
+        db.update_status(analysis_id, "completed", current_step="done")
         print(f"[分析] 分析完成: {analysis_id}")
 
     except Exception as e:
@@ -128,22 +127,32 @@ async def get_analysis_status(analysis_id: str):
         {"name": "tech_stack", "label": "技术栈分析"}
     ]
 
-    # 根据状态计算进度
+    # 获取当前步骤标识
+    step_info = record.get("error_message", "") or ""
+
+    # 根据状态和步骤标识计算进度
     if status == "pending":
         completed = 0
         current_step = "等待开始"
         step_status = ["pending", "pending", "pending"]
     elif status == "processing":
-        completed = 1
-        current_step = "分析进行中"
-        step_status = ["processing", "pending", "pending"]
+        if step_info == "translate":
+            # 阶段2：正在翻译和生成摘要
+            completed = 1
+            current_step = "正在翻译README..."
+            step_status = ["completed", "processing", "processing"]
+        else:
+            # 阶段1：正在获取项目信息
+            completed = 0
+            current_step = "正在获取项目信息..."
+            step_status = ["processing", "pending", "processing"]
     elif status == "completed":
         completed = 3
         current_step = "分析完成"
         step_status = ["completed", "completed", "completed"]
     else:  # failed
         completed = 0
-        current_step = record.get("error_message", "分析失败")
+        current_step = step_info or "分析失败"
         step_status = ["failed", "failed", "failed"]
 
     progress = AnalysisProgress(

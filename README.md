@@ -20,7 +20,13 @@ GitHub项目智能分析/
 │   │   └── main.py            # 入口
 │   ├── requirements.txt
 │   └── run.py
-├── github-analyzer-frontend/   # 前端应用 (Next.js)
+├── frontend/   # 前端应用 (Next.js)
+│   ├── src/
+│   │   ├── app/               # 页面和布局
+│   │   ├── components/        # UI组件
+│   │   ├── hooks/             # 自定义Hook
+│   │   └── lib/               # API客户端
+│   └── package.json
 ├── docs/                       # 项目文档
 └── README.md
 ```
@@ -64,14 +70,32 @@ OPENAI_MODEL=gpt-4o-mini
 GITHUB_TOKEN=your_github_token
 ```
 
+### 支持的AI提供商
+
+| 提供商 | OPENAI_BASE_URL | 模型示例 |
+|--------|-----------------|----------|
+| OpenAI | https://api.openai.com/v1 | gpt-4o-mini |
+| 通义千问 | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen-turbo |
+| DeepSeek | https://api.deepseek.com/v1 | deepseek-chat |
+| 智谱AI | https://open.bigmodel.cn/api/paas/v4 | GLM-4.5-Air |
+| Moonshot | https://api.moonshot.cn/v1 | moonshot-v1-8k |
+
 ## API文档
 
 启动后端后访问：http://localhost:8000/docs
 
+## 项目文档
+
+- [开发指南](docs/开发指南.md) - 完整的开发文档，包含架构、已知问题
+- [API接口文档](docs/API接口文档.md) - 后端API详细说明
+- [需求规格文档](docs/需求规格文档.md) - 产品需求
+- [技术实现方案文档](docs/技术实现方案文档.md) - 技术方案
+- [前端README](github-analyzer-frontend/README.md) - 前端专项说明
+
 ## 技术栈
 
 - **后端**: Python, FastAPI, SQLite
-- **前端**: TypeScript, Next.js, React, Tailwind CSS
+- **前端**: TypeScript, Next.js, React, Tailwind CSS, shadcn/ui
 - **AI**: OpenAI兼容接口（支持多家提供商）
 
 ## 许可证

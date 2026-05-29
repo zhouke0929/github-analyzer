@@ -64,7 +64,7 @@ class Database:
         finally:
             conn.close()
 
-    def update_status(self, analysis_id: str, status: str, error_message: str = None):
+    def update_status(self, analysis_id: str, status: str, error_message: str = None, current_step: str = None):
         """更新分析状态"""
         conn = self._get_conn()
         try:
@@ -79,9 +79,10 @@ class Database:
                     (status, error_message, analysis_id)
                 )
             else:
+                # 将当前步骤信息存储在 error_message 字段中（复用字段用于进度追踪）
                 conn.execute(
-                    "UPDATE analyses SET status = ? WHERE id = ?",
-                    (status, analysis_id)
+                    "UPDATE analyses SET status = ?, error_message = ? WHERE id = ?",
+                    (status, current_step or status, analysis_id)
                 )
             conn.commit()
         finally:

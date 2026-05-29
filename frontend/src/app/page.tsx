@@ -1,0 +1,228 @@
+"use client";
+
+import { useState } from "react";
+import { UrlInput } from "@/components/UrlInput";
+import { ProgressBar } from "@/components/ProgressBar";
+import { SummaryCard } from "@/components/SummaryCard";
+import { TechStackCard } from "@/components/TechStackCard";
+import { ReadmeViewer } from "@/components/ReadmeViewer";
+import { ExportButton } from "@/components/ExportButton";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAnalysis } from "@/hooks/useAnalysis";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { GitBranch, ArrowLeft, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export default function Home() {
+  const {
+    isLoading,
+    error,
+    repoInfo,
+    status,
+    result,
+    startAnalysisJob,
+    reset,
+  } = useAnalysis();
+  const [activeTab, setActiveTab] = useState("summary");
+
+  const progressPercent = status?.progress
+    ? Math.round(
+        (status.progress.completed / status.progress.total) * 100
+      )
+    : 0;
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GitBranch className="w-6 h-6 text-github" />
+            <span className="font-semibold text-foreground">
+              GitHub 项目智能分析
+            </span>
+          </div>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <main className="flex-1">
+        {/* 分析中 - 全屏加载视图 */}
+        {isLoading && (
+          <section className="max-w-5xl mx-auto px-4 pt-20 pb-8">
+            <div className="text-center space-y-6 mb-10">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                正在分析项目
+              </h1>
+              {repoInfo && (
+                <p className="text-lg text-muted-foreground">
+                  {repoInfo.full_name}
+                </p>
+              )}
+            </div>
+
+            {status && (
+              <ProgressBar
+                currentStep={status.progress?.current_step || "处理中..."}
+                progress={progressPercent}
+              />
+            )}
+
+            {!status && (
+              <div className="max-w-2xl mx-auto space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4 mx-auto" />
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-6 max-w-2xl mx-auto p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">
+                    分析失败
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={reset}
+                    className="mt-2 p-0 h-auto text-destructive cursor-pointer"
+                  >
+                    重试
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 输入页面 - 未加载未结果 */}
+        {!isLoading && !result && (
+          <section className="max-w-5xl mx-auto px-4 pt-16 pb-8">
+            <div className="text-center space-y-6 mb-10">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground">
+                快速理解任何 GitHub 项目
+              </h1>
+              <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+                输入 GitHub 仓库地址，AI 将为你翻译 README、分析技术栈、生成项目摘要
+              </p>
+            </div>
+            <UrlInput onSubmit={startAnalysisJob} isLoading={isLoading} />
+
+            {error && (
+              <div className="mt-6 max-w-2xl mx-auto p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">
+                    分析失败
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={reset}
+                    className="mt-2 p-0 h-auto text-destructive cursor-pointer"
+                  >
+                    重试
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Results Section */}
+        {result && (
+          <section className="max-w-5xl mx-auto px-4 py-8">
+            <div className="flex items-center justify-between mb-6">
+              <Button
+                variant="ghost"
+                onClick={reset}
+                className="cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                返回
+              </Button>
+              <ExportButton result={result} />
+            </div>
+
+            {/* Summary Card */}
+            <div className="mb-6">
+              <SummaryCard
+                repoInfo={result.repo_info}
+                summary={result.summary}
+              />
+            </div>
+
+            {/* Tabs for detailed content */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="w-full justify-start mb-6">
+                <TabsTrigger value="summary" className="cursor-pointer">
+                  项目摘要
+                </TabsTrigger>
+                <TabsTrigger value="readme" className="cursor-pointer">
+                  README 翻译
+                </TabsTrigger>
+                <TabsTrigger value="techstack" className="cursor-pointer">
+                  技术栈
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="summary">
+                <div className="p-6 bg-card border border-border rounded-lg">
+                  <h3 className="text-lg font-semibold mb-4">项目摘要</h3>
+                  <p className="text-foreground leading-relaxed">
+                    {result.summary}
+                  </p>
+                  <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold text-github">
+                        {result.repo_info.stars.toLocaleString()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Stars</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold text-foreground">
+                        {result.repo_info.forks.toLocaleString()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Forks</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold text-foreground">
+                        {result.tech_stack.languages.length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">编程语言</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold text-foreground">
+                        {result.tech_stack.frameworks.length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">框架</p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="readme">
+                <ReadmeViewer content={result.readme_cn} />
+              </TabsContent>
+
+              <TabsContent value="techstack">
+                <TechStackCard techStack={result.tech_stack} />
+              </TabsContent>
+            </Tabs>
+          </section>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border py-6 mt-auto">
+        <div className="max-w-5xl mx-auto px-4 text-center text-sm text-muted-foreground">
+          GitHub 项目智能分析 - AI 驱动的开源项目理解工具
+        </div>
+      </footer>
+    </div>
+  );
+}
