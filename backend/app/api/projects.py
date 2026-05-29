@@ -1,6 +1,7 @@
 """项目管理API路由"""
 import json
-from fastapi import APIRouter, HTTPException
+import uuid
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from ..models.schemas import ApiResponse
 from ..models.database import db
 
@@ -163,7 +164,7 @@ async def delete_project(project_id: str):
 
 
 @router.post("/projects/{project_id}/reanalyze", response_model=ApiResponse)
-async def reanalyze_project(project_id: str, background_tasks):
+async def reanalyze_project(project_id: str):
     """重新分析项目"""
     try:
         project = db.get_analysis(project_id)
@@ -174,20 +175,24 @@ async def reanalyze_project(project_id: str, background_tasks):
         repo = project["repo_name"]
         repo_url = project["repo_url"]
 
-        # 删除旧记录
+        # 删除旧记录（避免冗余）
         db.delete_analysis(project_id)
+        print(f"[重新分析] 已删除旧记录: {project_id}")
 
         # 创建新的分析任务
         from ..services.github_service import github_service
         repo_info = await github_service.get_repo_info(owner, repo)
 
-        import uuid
         new_id = uuid.uuid4().hex[:12]
         db.create_analysis(new_id, repo_url, owner, repo, repo_info)
 
-        # 启动后台任务
-        from .analyze import run_analysis
-        background_tasks.add_task(run_analysis, new_id, owner, repo, repo_info)
+        # 使用后台任务执行分析
+        import asyncio
+        import importlib
+        analyze_module = importlib.import_module("app.api.analyze")
+        asyncio.create_task(analyze_module.run_analysis(new_id, owner, repo, repo_info))
+
+        print(f"[重新分析] 新任务已创建: {new_id}")
 
         return ApiResponse(
             code=0,
