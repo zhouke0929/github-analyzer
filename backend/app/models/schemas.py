@@ -19,6 +19,19 @@ class StepStatus(str, Enum):
     FAILED = "failed"
 
 
+class AnalysisMode(str, Enum):
+    """分析模式"""
+    QUICK = "quick"
+    DEEP = "deep"
+
+
+class ArchitectureMode(str, Enum):
+    """架构分析深度"""
+    TREE_ONLY = "tree_only"
+    BASIC = "basic"
+    DEEP = "deep"
+
+
 # ===== 请求模型 =====
 
 class AnalyzeRequest(BaseModel):
@@ -105,6 +118,55 @@ class TechStack(BaseModel):
     tools: list[ToolInfo] = []
 
 
+class ModuleInfo(BaseModel):
+    """模块信息"""
+    name: str
+    path: str
+    description: str
+
+
+class FileStats(BaseModel):
+    """文件统计"""
+    total_files: int = 0
+    total_dirs: int = 0
+    by_extension: dict = {}
+    by_language: dict = {}
+
+
+class ArchitectureInfo(BaseModel):
+    """架构分析结果"""
+    tree: str = ""
+    summary: str = ""
+    modules: list[ModuleInfo] = []
+    file_stats: FileStats = FileStats()
+    design_patterns: list[str] = []
+
+
+class LabelInfo(BaseModel):
+    """标签信息"""
+    name: str
+    count: int
+
+
+class MonthlyTrend(BaseModel):
+    """月度趋势"""
+    month: str
+    created: int
+    closed: int
+
+
+class IssuesAnalysis(BaseModel):
+    """Issues分析结果"""
+    total: int = 0
+    open_count: int = 0
+    closed_count: int = 0
+    close_rate: float = 0
+    avg_close_days: float = 0
+    top_labels: list[LabelInfo] = []
+    monthly_trend: list[MonthlyTrend] = []
+    summary: str = ""
+
+
 class AnalysisResult(BaseModel):
     """完整分析结果"""
     id: str
@@ -112,6 +174,9 @@ class AnalysisResult(BaseModel):
     summary: str
     readme_cn: str
     tech_stack: TechStack
+    architecture: Optional[ArchitectureInfo] = None
+    issues_analysis: Optional[IssuesAnalysis] = None
+    analysis_mode: str = "quick"
 
 
 class ApiResponse(BaseModel):

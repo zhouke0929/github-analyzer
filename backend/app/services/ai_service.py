@@ -59,17 +59,21 @@ class AIService:
             temperature=0.3
         )
 
-        content = response.choices[0].message.content
-        if content:
+        message = response.choices[0].message
+
+        # 优先返回content字段（最终答案）
+        content = message.content
+        if content and len(content.strip()) > 10:
             return content.strip()
 
-        # 后备：从reasoning_content提取
-        if hasattr(response.choices[0].message, 'reasoning_content'):
-            reasoning = response.choices[0].message.reasoning_content
-            if reasoning:
-                return reasoning[:200].strip()
+        # 如果content为空或太短，检查是否有reasoning_content
+        # 但不要返回思考过程，而是返回空字符串让调用方使用后备方案
+        if hasattr(message, 'reasoning_content') and message.reasoning_content:
+            # reasoning_content是思考过程，不应该作为最终答案返回
+            # 但如果content确实为空，尝试从reasoning中提取关键信息
+            pass
 
-        return ""
+        return content.strip() if content else ""
 
     async def generate_json(self, prompt: str, max_tokens: int = 4096) -> dict:
         """生成并解析JSON（适合需要结构化返回的场景）"""

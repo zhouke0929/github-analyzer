@@ -31,14 +31,44 @@ class Database:
                     readme_cn TEXT,
                     summary TEXT,
                     tech_stack TEXT,
+                    architecture TEXT,
+                    issues_analysis TEXT,
+                    analysis_mode TEXT DEFAULT 'quick',
                     error_message TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     completed_at TIMESTAMP
                 )
             """)
             conn.commit()
+
+            # 检查是否需要添加新字段（兼容旧数据库）
+            self._migrate_db(conn)
         finally:
             conn.close()
+
+    def _migrate_db(self, conn: sqlite3.Connection):
+        """数据库迁移 - 添加新字段"""
+        try:
+            # 获取表结构
+            cursor = conn.execute("PRAGMA table_info(analyses)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            # 添加缺失的字段
+            if "architecture" not in columns:
+                conn.execute("ALTER TABLE analyses ADD COLUMN architecture TEXT")
+                print("[数据库迁移] 添加 architecture 字段")
+
+            if "issues_analysis" not in columns:
+                conn.execute("ALTER TABLE analyses ADD COLUMN issues_analysis TEXT")
+                print("[数据库迁移] 添加 issues_analysis 字段")
+
+            if "analysis_mode" not in columns:
+                conn.execute("ALTER TABLE analyses ADD COLUMN analysis_mode TEXT DEFAULT 'quick'")
+                print("[数据库迁移] 添加 analysis_mode 字段")
+
+            conn.commit()
+        except Exception as e:
+            print(f"[数据库迁移] {type(e).__name__}: {str(e)}")
 
     def create_analysis(self, analysis_id: str, repo_url: str, owner: str, repo_name: str, repo_info: dict) -> dict:
         """创建分析记录"""

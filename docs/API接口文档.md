@@ -1,8 +1,8 @@
-# GitHub项目智能分析 - 后端API接口文档（MVP）
+# GitHub项目智能分析 - 后端API接口文档
 
-> 版本：v1.0  
-> 日期：2026-05-29  
-> 状态：待确认
+> 版本：v2.0  
+> 日期：2026-05-30  
+> 状态：已确认
 
 ---
 
@@ -13,7 +13,7 @@
 | Base URL | `http://localhost:8000/api` |
 | 数据格式 | JSON |
 | 字符编码 | UTF-8 |
-| 认证方式 | 无（MVP阶段） |
+| 认证方式 | 无（本地部署） |
 
 ## 通用响应结构
 
@@ -39,12 +39,12 @@
 
 ## 接口总览
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/analyze` | 发起分析任务 |
-| GET | `/analyze/{id}/status` | 查询分析状态 |
-| GET | `/analyze/{id}/result` | 获取完整分析结果 |
-| GET | `/health` | 健康检查 |
+| 方法 | 路径 | 说明 | 状态 |
+|------|------|------|------|
+| POST | `/analyze` | 发起分析任务 | ✅ |
+| GET | `/analyze/{id}/status` | 查询分析状态 | ✅ |
+| GET | `/analyze/{id}/result` | 获取完整分析结果 | ✅ |
+| GET | `/health` | 健康检查 | ✅ |
 
 ---
 
@@ -81,7 +81,8 @@
       "stars": 234000,
       "forks": 45000,
       "language": "JavaScript",
-      "updated_at": "2026-05-28T10:00:00Z"
+      "updated_at": "2026-05-28T10:00:00Z",
+      "topics": ["javascript", "react", "frontend"]
     }
   }
 }
@@ -117,13 +118,15 @@
     "id": "a1b2c3d4",
     "status": "processing",
     "progress": {
-      "total": 3,
-      "completed": 1,
-      "current_step": "翻译README中",
+      "total": 5,
+      "completed": 2,
+      "current_step": "正在翻译README...",
       "steps": [
         {"name": "readme_translate", "label": "翻译README", "status": "completed"},
         {"name": "summary", "label": "生成摘要", "status": "processing"},
-        {"name": "tech_stack", "label": "技术栈分析", "status": "pending"}
+        {"name": "tech_stack", "label": "技术栈分析", "status": "processing"},
+        {"name": "architecture", "label": "架构分析", "status": "pending"},
+        {"name": "issues", "label": "Issues分析", "status": "pending"}
       ]
     }
   }
@@ -195,6 +198,37 @@
         {"name": "Jest", "category": "测试框架"},
         {"name": "Rollup", "category": "构建工具"}
       ]
+    },
+    "architecture": {
+      "tree": "├── src/\n│   ├── components/\n│   ├── hooks/\n│   └── index.js\n├── package.json\n└── README.md",
+      "summary": "",
+      "modules": [
+        {"name": "src", "path": "src", "description": "源代码目录"},
+        {"name": "components", "path": "src/components", "description": "UI组件"}
+      ],
+      "file_stats": {
+        "total_files": 540,
+        "total_dirs": 111,
+        "by_extension": {".js": 200, ".ts": 150},
+        "by_language": {"JavaScript": 200, "TypeScript": 150}
+      },
+      "design_patterns": ["组件模式", "Hooks模式"]
+    },
+    "issues_analysis": {
+      "total": 100,
+      "open_count": 15,
+      "closed_count": 85,
+      "close_rate": 0.85,
+      "avg_close_days": 2.5,
+      "top_labels": [
+        {"name": "bug", "count": 30},
+        {"name": "enhancement", "count": 20}
+      ],
+      "monthly_trend": [
+        {"month": "2026-04", "created": 45, "closed": 40},
+        {"month": "2026-05", "created": 55, "closed": 45}
+      ],
+      "summary": "该项目近3个月共有100个Issues，关闭率85%，平均处理时间2.5天，维护质量优秀。"
     }
   }
 }
@@ -219,7 +253,12 @@
 {
   "status": "healthy",
   "version": "1.0.0",
-  "timestamp": "2026-05-29T12:00:00Z"
+  "timestamp": "2026-05-30T12:00:00Z",
+  "github_api": {
+    "limit": 5000,
+    "authenticated": true,
+    "message": "已认证，5000次/小时"
+  }
 }
 ```
 
@@ -241,11 +280,21 @@
    → 展示完整分析结果
 ```
 
+### 分析步骤说明
+
+| 步骤 | 名称 | 说明 |
+|------|------|------|
+| 1 | readme_translate | 获取并翻译README |
+| 2 | summary | 生成项目一句话摘要 |
+| 3 | tech_stack | 分析技术栈（语言、框架、工具） |
+| 4 | architecture | 分析项目架构（目录结构、模块） |
+| 5 | issues | 分析Issues趋势 |
+
 ### 轮询建议
 
 - 轮询间隔：2秒
 - 首次轮询延迟：1秒（发起分析后）
-- 最大轮询时长：60秒（超时后提示用户刷新）
+- 最大轮询时长：120秒（超时后提示用户刷新）
 
 ---
 
@@ -263,7 +312,7 @@
 | forks | number | Fork数量 |
 | language | string | 主要编程语言 |
 | updated_at | string | 最近更新时间（ISO 8601） |
-| topics | string[] | 项目标签（仅result接口返回） |
+| topics | string[] | 项目标签 |
 
 ### tech_stack
 
@@ -275,12 +324,47 @@
 | frameworks | array | 框架列表 |
 | frameworks[].name | string | 框架名称 |
 | frameworks[].version | string | 版本号 |
-| frameworks[].category | string | 分类（前端框架/后端框架/全栈框架） |
+| frameworks[].category | string | 分类 |
 | tools | array | 工具列表 |
 | tools[].name | string | 工具名称 |
-| tools[].category | string | 分类（测试框架/构建工具/代码规范等） |
+| tools[].category | string | 分类 |
+
+### architecture
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| tree | string | 目录树文本 |
+| summary | string | 架构概述（可为空） |
+| modules | array | 主要模块列表 |
+| modules[].name | string | 模块名称 |
+| modules[].path | string | 模块路径 |
+| modules[].description | string | 模块说明 |
+| file_stats | object | 文件统计 |
+| file_stats.total_files | number | 文件总数 |
+| file_stats.total_dirs | number | 目录总数 |
+| file_stats.by_extension | object | 按扩展名统计 |
+| file_stats.by_language | object | 按语言统计 |
+| design_patterns | string[] | 设计模式列表 |
+
+### issues_analysis
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| total | number | Issues总数 |
+| open_count | number | 待处理数量 |
+| closed_count | number | 已关闭数量 |
+| close_rate | number | 关闭率（0-1） |
+| avg_close_days | number | 平均关闭天数 |
+| top_labels | array | 主要标签 |
+| top_labels[].name | string | 标签名称 |
+| top_labels[].count | number | 标签数量 |
+| monthly_trend | array | 月度趋势 |
+| monthly_trend[].month | string | 月份（YYYY-MM） |
+| monthly_trend[].created | number | 新增数量 |
+| monthly_trend[].closed | number | 关闭数量 |
+| summary | string | 分析摘要 |
 
 ---
 
 **文档维护：** 后端开发  
-**联系方式：** 待补充
+**最后更新：** 2026-05-30

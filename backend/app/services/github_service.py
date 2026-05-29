@@ -94,6 +94,36 @@ class GitHubService:
         except Exception:
             return None
 
+    async def get_tree(self, owner: str, repo: str, sha: str = "main") -> dict:
+        """获取仓库目录树"""
+        try:
+            data = await self._request(f"/repos/{owner}/{repo}/git/trees/{sha}?recursive=1")
+            return data
+        except Exception:
+            # 尝试master分支
+            try:
+                data = await self._request(f"/repos/{owner}/{repo}/git/trees/master?recursive=1")
+                return data
+            except Exception:
+                return {"tree": []}
+
+    async def get_default_branch(self, owner: str, repo: str) -> str:
+        """获取默认分支名"""
+        try:
+            data = await self._request(f"/repos/{owner}/{repo}")
+            return data.get("default_branch", "main")
+        except Exception:
+            return "main"
+
+    async def get_issues(self, owner: str, repo: str, per_page: int = 100, state: str = "all") -> list:
+        """获取Issues列表"""
+        try:
+            data = await self._request(f"/repos/{owner}/{repo}/issues?state={state}&per_page={per_page}&sort=created&direction=desc")
+            return data if isinstance(data, list) else []
+        except Exception as e:
+            print(f"[GitHub] 获取Issues失败: {e}")
+            return []
+
 
 # 全局实例
 github_service = GitHubService()

@@ -4,8 +4,9 @@ import { useState } from "react";
 import { UrlInput } from "@/components/UrlInput";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SummaryCard } from "@/components/SummaryCard";
-import { TechStackCard } from "@/components/TechStackCard";
+import { TechArchitectureCard } from "@/components/TechArchitectureCard";
 import { ReadmeViewer } from "@/components/ReadmeViewer";
+import { IssuesAnalysisCard } from "@/components/IssuesAnalysisCard";
 import { ExportButton } from "@/components/ExportButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAnalysis } from "@/hooks/useAnalysis";
@@ -106,10 +107,14 @@ export default function Home() {
                 快速理解任何 GitHub 项目
               </h1>
               <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-                输入 GitHub 仓库地址，AI 将为你翻译 README、分析技术栈、生成项目摘要
+                输入 GitHub 仓库地址，AI 将为你翻译 README、分析技术栈、架构、Issues 趋势
               </p>
             </div>
-            <UrlInput onSubmit={startAnalysisJob} isLoading={isLoading} />
+
+            <UrlInput
+              onSubmit={(url) => startAnalysisJob(url)}
+              isLoading={isLoading}
+            />
 
             {error && (
               <div className="mt-6 max-w-2xl mx-auto p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
@@ -158,60 +163,36 @@ export default function Home() {
 
             {/* Tabs for detailed content */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="w-full justify-start mb-6">
-                <TabsTrigger value="summary" className="cursor-pointer">
-                  项目摘要
-                </TabsTrigger>
+              <TabsList className="w-full justify-start mb-6 flex-wrap">
                 <TabsTrigger value="readme" className="cursor-pointer">
                   README 翻译
                 </TabsTrigger>
-                <TabsTrigger value="techstack" className="cursor-pointer">
-                  技术栈
+                <TabsTrigger value="tech-arch" className="cursor-pointer">
+                  技术栈与架构
                 </TabsTrigger>
+                {result.issues_analysis && (
+                  <TabsTrigger value="issues" className="cursor-pointer">
+                    Issues 趋势
+                  </TabsTrigger>
+                )}
               </TabsList>
-
-              <TabsContent value="summary">
-                <div className="p-6 bg-card border border-border rounded-lg">
-                  <h3 className="text-lg font-semibold mb-4">项目摘要</h3>
-                  <p className="text-foreground leading-relaxed">
-                    {result.summary}
-                  </p>
-                  <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-muted rounded-lg text-center">
-                      <p className="text-2xl font-bold text-github">
-                        {result.repo_info.stars.toLocaleString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">Stars</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg text-center">
-                      <p className="text-2xl font-bold text-foreground">
-                        {result.repo_info.forks.toLocaleString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">Forks</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg text-center">
-                      <p className="text-2xl font-bold text-foreground">
-                        {result.tech_stack.languages.length}
-                      </p>
-                      <p className="text-sm text-muted-foreground">编程语言</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg text-center">
-                      <p className="text-2xl font-bold text-foreground">
-                        {result.tech_stack.frameworks.length}
-                      </p>
-                      <p className="text-sm text-muted-foreground">框架</p>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
 
               <TabsContent value="readme">
                 <ReadmeViewer content={result.readme_cn} />
               </TabsContent>
 
-              <TabsContent value="techstack">
-                <TechStackCard techStack={result.tech_stack} />
+              <TabsContent value="tech-arch">
+                <TechArchitectureCard
+                  techStack={result.tech_stack}
+                  architecture={result.architecture}
+                />
               </TabsContent>
+
+              {result.issues_analysis && (
+                <TabsContent value="issues">
+                  <IssuesAnalysisCard issuesAnalysis={result.issues_analysis} />
+                </TabsContent>
+              )}
             </Tabs>
           </section>
         )}

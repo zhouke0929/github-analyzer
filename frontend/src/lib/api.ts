@@ -44,12 +44,58 @@ export interface AnalysisStatus {
   progress?: AnalysisProgress;
 }
 
+export interface ModuleInfo {
+  name: string;
+  path: string;
+  description: string;
+}
+
+export interface FileStats {
+  total_files: number;
+  total_dirs: number;
+  by_extension: Record<string, number>;
+  by_language: Record<string, number>;
+}
+
+export interface ArchitectureInfo {
+  tree: string;
+  summary: string;
+  modules: ModuleInfo[];
+  file_stats: FileStats;
+  design_patterns: string[];
+}
+
+export interface LabelInfo {
+  name: string;
+  count: number;
+}
+
+export interface MonthlyTrend {
+  month: string;
+  created: number;
+  closed: number;
+}
+
+export interface IssuesAnalysis {
+  total: number;
+  open_count: number;
+  closed_count: number;
+  close_rate: number;
+  avg_close_days: number;
+  top_labels: LabelInfo[];
+  monthly_trend: MonthlyTrend[];
+  summary: string;
+}
+
 export interface AnalysisResult {
   id: string;
   repo_info: RepoInfo;
   summary: string;
   readme_cn: string;
   tech_stack: TechStack;
+  architecture?: ArchitectureInfo;
+  issues_analysis?: IssuesAnalysis;
+  analysis_mode?: string;
 }
 
 export interface ApiResponse<T> {
