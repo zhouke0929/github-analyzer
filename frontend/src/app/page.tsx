@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { UrlInput } from "@/components/UrlInput";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -12,7 +13,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GitBranch, ArrowLeft, AlertCircle } from "lucide-react";
+import { GitBranch, ArrowLeft, AlertCircle, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
@@ -44,7 +45,15 @@ export default function Home() {
               GitHub 项目智能分析
             </span>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <Link href="/projects">
+              <Button variant="ghost" size="sm" className="cursor-pointer">
+                <FolderOpen className="w-4 h-4 mr-2" />
+                已分析项目
+              </Button>
+            </Link>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

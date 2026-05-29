@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
-from .api import analyze, health
+from .api import analyze, health, projects
 from .services.github_service import github_service
 
 settings = get_settings()
@@ -21,7 +21,6 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,6 +28,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(analyze.router)
+app.include_router(projects.router)
 app.include_router(health.router)
 
 

@@ -103,6 +103,21 @@ async def create_analysis(request: AnalyzeRequest, background_tasks: BackgroundT
 
         print(f"[API] 收到分析请求: url={request.url}")
 
+        # 检查是否已存在该项目的分析记录（去重）
+        existing = db.get_analysis_by_repo(owner, repo)
+        if existing and existing["status"] == "completed":
+            print(f"[API] 项目已分析过，返回现有结果: {existing['id']}")
+            return ApiResponse(
+                code=0,
+                message="项目已分析过，返回现有结果",
+                data={
+                    "id": existing["id"],
+                    "status": "completed",
+                    "repo_info": json.loads(existing["repo_info"]) if isinstance(existing["repo_info"], str) else existing["repo_info"],
+                    "is_existing": True
+                }
+            )
+
         # 获取仓库基础信息
         repo_info = await github_service.get_repo_info(owner, repo)
 
@@ -121,7 +136,8 @@ async def create_analysis(request: AnalyzeRequest, background_tasks: BackgroundT
             data={
                 "id": analysis_id,
                 "status": "pending",
-                "repo_info": repo_info
+                "repo_info": repo_info,
+                "is_existing": False
             }
         )
 

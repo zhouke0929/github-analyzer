@@ -125,7 +125,7 @@ async function request<T>(
 
 export async function startAnalysis(
   url: string
-): Promise<ApiResponse<{ id: string; status: string; repo_info: RepoInfo }>> {
+): Promise<ApiResponse<{ id: string; status: string; repo_info: RepoInfo; is_existing?: boolean }>> {
   return request("/api/analyze", {
     method: "POST",
     body: JSON.stringify({ url }),
@@ -150,4 +150,65 @@ export async function healthCheck(): Promise<{
 }> {
   const res = await fetch(`${API_BASE}/api/health`);
   return res.json();
+}
+
+// 项目管理相关接口
+
+export interface ProjectItem {
+  id: string;
+  owner: string;
+  repo: string;
+  full_name: string;
+  description: string;
+  stars: number;
+  forks: number;
+  language: string;
+  languages: string[];
+  topics: string[];
+  summary: string;
+  created_at: string;
+  completed_at: string;
+}
+
+export interface ProjectsResponse {
+  total: number;
+  projects: ProjectItem[];
+}
+
+export async function getProjects(params?: {
+  search?: string;
+  language?: string;
+  sort_by?: string;
+  order?: string;
+}): Promise<ApiResponse<ProjectsResponse>> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.set("search", params.search);
+  if (params?.language) searchParams.set("language", params.language);
+  if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
+  if (params?.order) searchParams.set("order", params.order);
+
+  const query = searchParams.toString();
+  return request(`/api/projects${query ? `?${query}` : ""}`);
+}
+
+export async function getProjectDetail(
+  id: string
+): Promise<ApiResponse<AnalysisResult>> {
+  return request(`/api/projects/${id}`);
+}
+
+export async function deleteProject(
+  id: string
+): Promise<ApiResponse<{ id: string }>> {
+  return request(`/api/projects/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function reanalyzeProject(
+  id: string
+): Promise<ApiResponse<{ id: string; status: string; repo_info: RepoInfo }>> {
+  return request(`/api/projects/${id}/reanalyze`, {
+    method: "POST",
+  });
 }

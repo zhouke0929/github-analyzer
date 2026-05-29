@@ -119,6 +119,17 @@ export function useAnalysis(): UseAnalysisReturn {
         if (res.code === 0 && res.data) {
           setAnalysisId(res.data.id);
           setRepoInfo(res.data.repo_info);
+
+          // 如果是已存在的项目，直接获取结果
+          if (res.data.is_existing) {
+            const resultRes = await getAnalysisResult(res.data.id);
+            if (resultRes.code === 0 && resultRes.data) {
+              setResult(resultRes.data);
+              setIsLoading(false);
+              return;
+            }
+          }
+
           pollStatus(res.data.id);
         } else {
           setError(res.message || "分析请求失败");

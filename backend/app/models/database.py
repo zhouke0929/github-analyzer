@@ -94,6 +94,51 @@ class Database:
         finally:
             conn.close()
 
+    def get_analysis_by_repo(self, owner: str, repo_name: str) -> dict | None:
+        """根据仓库信息获取最新的分析记录"""
+        conn = self._get_conn()
+        try:
+            row = conn.execute(
+                "SELECT * FROM analyses WHERE owner = ? AND repo_name = ? ORDER BY created_at DESC LIMIT 1",
+                (owner, repo_name)
+            ).fetchone()
+            if row:
+                return dict(row)
+            return None
+        finally:
+            conn.close()
+
+    def get_all_projects(self) -> list:
+        """获取所有已分析的项目（每个项目只返回最新记录）"""
+        conn = self._get_conn()
+        try:
+            rows = conn.execute("""
+                SELECT * FROM analyses
+                WHERE status = 'completed'
+                AND id IN (
+                    SELECT id FROM analyses
+                    WHERE status = 'completed'
+                    GROUP BY owner, repo_name
+                    HAVING created_at = MAX(created_at)
+                )
+                ORDER BY created_at DESC
+            """).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def delete_analysis(self, analysis_id: str) -> bool:
+        """删除分析记录"""
+        conn = self._get_conn()
+        try:
+            conn.execute("DELETE FROM analyses WHERE id = ?", (analysis_id,))
+            conn.commit()
+            return True
+        except Exception:
+            return False
+        finally:
+            conn.close()
+
     def update_status(self, analysis_id: str, status: str, error_message: str = None, current_step: str = None):
         """更新分析状态"""
         conn = self._get_conn()
