@@ -44,16 +44,57 @@ export default function AnalyzeDetailPage({
     try {
       const res = await getProjectDetail(id);
       if (res.code === 0 && res.data) {
-        setResult(res.data);
+        // 检查是否是pending状态
+        if (res.data.status === "pending" || res.data.status === "processing") {
+          // 开始轮询等待分析完成
+          pollForCompletion(id);
+        } else {
+          setResult(res.data);
+          setIsLoading(false);
+        }
       } else {
         setError(res.message || "加载失败");
+        setIsLoading(false);
       }
     } catch {
       setError("网络请求失败");
-    } finally {
       setIsLoading(false);
     }
   }, [id]);
+
+  // 轮询等待分析完成
+  const pollForCompletion = useCallback((projectId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await getProjectDetail(projectId);
+        if (res.code === 0 && res.data) {
+          if (res.data.status === "completed") {
+            clearInterval(interval);
+            setResult(res.data);
+            setIsLoading(false);
+          } else if (res.data.status === "failed") {
+            clearInterval(interval);
+            setError("分析失败");
+            setIsLoading(false);
+          }
+          // 如果还是pending/processing，继续轮询
+        }
+      } catch {
+        // 轮询出错，继续尝试
+      }
+    }, 2000); // 每2秒检查一次
+
+    // 5分钟后停止轮询
+    setTimeout(() => {
+      clearInterval(interval);
+      if (isLoading) {
+        setError("分析超时，请稍后刷新");
+        setIsLoading(false);
+      }
+    }, 300000);
+
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   useEffect(() => {
     loadProject();
@@ -107,7 +148,8 @@ export default function AnalyzeDetailPage({
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-github mx-auto mb-4" />
-          <p className="text-muted-foreground">加载中...</p>
+          <p className="text-muted-foreground">正在分析项目，请稍候...</p>
+          <p className="text-sm text-muted-foreground mt-2">这可能需要1-2分钟</p>
         </div>
       </div>
     );

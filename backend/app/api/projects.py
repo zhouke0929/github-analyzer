@@ -96,18 +96,16 @@ async def get_project_detail(project_id: str):
         if not project:
             raise HTTPException(status_code=404, detail="项目不存在")
 
-        if project["status"] != "completed":
-            raise HTTPException(status_code=400, detail="项目分析未完成")
-
         # 解析JSON字段
-        repo_info = json.loads(project["repo_info"]) if isinstance(project["repo_info"], str) else project["repo_info"]
-        tech_stack = json.loads(project["tech_stack"]) if isinstance(project["tech_stack"], str) else project["tech_stack"]
+        repo_info = json.loads(project["repo_info"]) if isinstance(project["repo_info"], str) else project.get("repo_info", {})
+        tech_stack = json.loads(project["tech_stack"]) if isinstance(project["tech_stack"], str) else project.get("tech_stack", {})
 
         result = {
             "id": project["id"],
+            "status": project["status"],
             "repo_info": repo_info,
-            "summary": project["summary"],
-            "readme_cn": project["readme_cn"],
+            "summary": project.get("summary", ""),
+            "readme_cn": project.get("readme_cn", ""),
             "tech_stack": tech_stack
         }
 
