@@ -73,6 +73,85 @@ class GitHubService:
         if encoding == "base64":
             content = base64.b64decode(content).decode("utf-8")
 
+        # 将相对路径的图片链接转换为绝对路径
+        content = self._fix_relative_urls(content, owner, repo)
+
+        return content
+
+    def _fix_relative_urls(self, content: str, owner: str, repo: str) -> str:
+        """将相对路径的URL转换为绝对路径"""
+        import re
+
+        # GitHub raw内容的基础URL
+        base_raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/main"
+        # GitHub仓库的基础URL
+        base_repo_url = f"https://github.com/{owner}/{repo}"
+
+        # 处理Markdown图片语法: ![alt](url)
+        def replace_image_url(match):
+            alt = match.group(1)
+            url = match.group(2)
+
+            # 如果已经是绝对路径，不处理
+            if url.startswith("http://") or url.startswith("https://"):
+                return match.group(0)
+
+            # 相对路径转换为绝对路径
+            if url.startswith("./"):
+                url = url[2:]
+            elif url.startswith("/"):
+                url = url[1:]
+
+            # 使用raw.githubusercontent.com来获取图片
+            absolute_url = f"{base_raw_url}/{url}"
+            return f"![{alt}]({absolute_url})"
+
+        # 处理Markdown链接语法: [text](url)
+        def replace_link_url(match):
+            text = match.group(1)
+            url = match.group(2)
+
+            # 如果已经是绝对路径，不处理
+            if url.startswith("http://") or url.startswith("https://"):
+                return match.group(0)
+
+            # 如果是锚点链接，不处理
+            if url.startswith("#"):
+                return match.group(0)
+
+            # 相对路径转换为绝对路径
+            if url.startswith("./"):
+                url = url[2:]
+            elif url.startswith("/"):
+                url = url[1:]
+
+            absolute_url = f"{base_repo_url}/{url}"
+            return f"[{text}]({absolute_url})"
+
+        # 处理HTML img标签: <img src="url">
+        def replace_html_img(match):
+            prefix = match.group(1)
+            url = match.group(2)
+            suffix = match.group(3)
+
+            # 如果已经是绝对路径，不处理
+            if url.startswith("http://") or url.startswith("https://"):
+                return match.group(0)
+
+            # 相对路径转换为绝对路径
+            if url.startswith("./"):
+                url = url[2:]
+            elif url.startswith("/"):
+                url = url[1:]
+
+            absolute_url = f"{base_raw_url}/{url}"
+            return f'{prefix}{absolute_url}{suffix}'
+
+        # 应用替换
+        content = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', replace_image_url, content)
+        content = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replace_link_url, content)
+        content = re.sub(r'(<img[^>]*src=["\'])([^"\']+)(["\'][^>]*>)', replace_html_img, content)
+
         return content
 
     async def get_languages(self, owner: str, repo: str) -> dict:
