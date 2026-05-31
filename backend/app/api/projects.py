@@ -34,6 +34,7 @@ async def get_projects(
                 "owner": project["owner"],
                 "repo": project["repo_name"],
                 "full_name": f"{project['owner']}/{project['repo_name']}",
+                "repo_url": project["repo_url"],
                 "description": repo_info.get("description", ""),
                 "stars": repo_info.get("stars", 0),
                 "forks": repo_info.get("forks", 0),

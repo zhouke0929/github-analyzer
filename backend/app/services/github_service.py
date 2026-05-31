@@ -73,17 +73,20 @@ class GitHubService:
         if encoding == "base64":
             content = base64.b64decode(content).decode("utf-8")
 
+        # 获取默认分支名
+        default_branch = await self.get_default_branch(owner, repo)
+
         # 将相对路径的图片链接转换为绝对路径
-        content = self._fix_relative_urls(content, owner, repo)
+        content = self._fix_relative_urls(content, owner, repo, default_branch)
 
         return content
 
-    def _fix_relative_urls(self, content: str, owner: str, repo: str) -> str:
+    def _fix_relative_urls(self, content: str, owner: str, repo: str, default_branch: str = "main") -> str:
         """将相对路径的URL转换为绝对路径"""
         import re
 
         # GitHub raw内容的基础URL
-        base_raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/main"
+        base_raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}"
         # GitHub仓库的基础URL
         base_repo_url = f"https://github.com/{owner}/{repo}"
 
@@ -201,6 +204,44 @@ class GitHubService:
             return data if isinstance(data, list) else []
         except Exception as e:
             print(f"[GitHub] 获取Issues失败: {e}")
+            return []
+
+    async def search_code(self, owner: str, repo: str, query: str, per_page: int = 10) -> list:
+        """搜索代码
+
+        Args:
+            owner: 仓库所有者
+            repo: 仓库名称
+            query: 搜索关键词
+            per_page: 每页结果数量
+
+        Returns:
+            搜索结果列表
+        """
+        try:
+            import urllib.parse
+            encoded_query = urllib.parse.quote(f"{query} repo:{owner}/{repo}")
+            data = await self._request(f"/search/code?q={encoded_query}&per_page={per_page}")
+
+            results = []
+            items = data.get("items", [])
+
+            for item in items:
+                # 获取文件内容
+                file_path = item.get("path", "")
+                content = await self.get_file_content(owner, repo, file_path)
+
+                results.append({
+                    "path": file_path,
+                    "content": content[:500] if content else "",  # 限制内容长度
+                    "language": item.get("language", ""),
+                    "url": item.get("html_url", "")
+                })
+
+            return results
+
+        except Exception as e:
+            print(f"[GitHub] 搜索代码失败: {e}")
             return []
 
 

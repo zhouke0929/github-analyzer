@@ -247,6 +247,19 @@ export default function ProjectsPage() {
 
                         {/* 操作按钮 */}
                         <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="cursor-pointer"
+                            title="查看GitHub原项目"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const url = `https://github.com/${project.owner}/${project.repo}`;
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                          >
+                            <GitBranch className="w-4 h-4" />
+                          </Button>
                           <Link href={`/analyze/${project.id}`}>
                             <Button
                               variant="ghost"

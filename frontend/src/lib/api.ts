@@ -96,6 +96,7 @@ export interface AnalysisResult {
   architecture?: ArchitectureInfo;
   issues_analysis?: IssuesAnalysis;
   analysis_mode?: string;
+  default_branch?: string;
 }
 
 export interface ApiResponse<T> {
@@ -159,6 +160,7 @@ export interface ProjectItem {
   owner: string;
   repo: string;
   full_name: string;
+  repo_url: string;
   description: string;
   stars: number;
   forks: number;
@@ -211,4 +213,48 @@ export async function reanalyzeProject(
   return request(`/api/projects/${id}/reanalyze`, {
     method: "POST",
   });
+}
+
+// 问答相关接口
+
+export interface QASession {
+  session_id: string;
+  analysis_id: string;
+  owner: string;
+  repo: string;
+  created_at: string;
+}
+
+export interface QAMessage {
+  message_id: string;
+  role: "user" | "assistant";
+  content: string;
+  references?: { file_path: string; content: string }[];
+  tools_used?: string[];
+  created_at: string;
+}
+
+export async function createQASession(
+  analysisId: string
+): Promise<ApiResponse<QASession>> {
+  return request("/api/qa/sessions", {
+    method: "POST",
+    body: JSON.stringify({ analysis_id: analysisId }),
+  });
+}
+
+export async function sendQAMessage(
+  sessionId: string,
+  message: string
+): Promise<ApiResponse<QAMessage>> {
+  return request(`/api/qa/sessions/${sessionId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+export async function getQAHistory(
+  sessionId: string
+): Promise<ApiResponse<{ session_id: string; messages: QAMessage[] }>> {
+  return request(`/api/qa/sessions/${sessionId}/history`);
 }

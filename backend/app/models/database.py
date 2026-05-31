@@ -39,6 +39,33 @@ class Database:
                     completed_at TIMESTAMP
                 )
             """)
+
+            # QA 会话表
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS qa_sessions (
+                    id TEXT PRIMARY KEY,
+                    analysis_id TEXT NOT NULL,
+                    owner TEXT NOT NULL,
+                    repo_name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (analysis_id) REFERENCES analyses(id)
+                )
+            """)
+
+            # QA 消息表
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS qa_messages (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    code_references TEXT,
+                    tools_used TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES qa_sessions(id)
+                )
+            """)
+
             conn.commit()
 
             # 检查是否需要添加新字段（兼容旧数据库）
@@ -181,6 +208,55 @@ class Database:
                 sql = f"UPDATE analyses SET {', '.join(updates)} WHERE id = ?"
                 conn.execute(sql, values)
                 conn.commit()
+        finally:
+            conn.close()
+
+    # ===== QA 相关方法 =====
+
+    def create_qa_session(self, session_id: str, analysis_id: str, owner: str, repo_name: str):
+        """创建 QA 会话"""
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "INSERT INTO qa_sessions (id, analysis_id, owner, repo_name) VALUES (?, ?, ?, ?)",
+                (session_id, analysis_id, owner, repo_name)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_qa_session(self, session_id: str) -> dict | None:
+        """获取 QA 会话"""
+        conn = self._get_conn()
+        try:
+            row = conn.execute("SELECT * FROM qa_sessions WHERE id = ?", (session_id,)).fetchone()
+            if row:
+                return dict(row)
+            return None
+        finally:
+            conn.close()
+
+    def create_qa_message(self, session_id: str, message_id: str, role: str, content: str, code_references: str = None, tools_used: str = None):
+        """创建 QA 消息"""
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "INSERT INTO qa_messages (id, session_id, role, content, code_references, tools_used) VALUES (?, ?, ?, ?, ?, ?)",
+                (message_id, session_id, role, content, code_references, tools_used)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_qa_messages(self, session_id: str) -> list:
+        """获取 QA 消息列表"""
+        conn = self._get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM qa_messages WHERE session_id = ? ORDER BY created_at ASC",
+                (session_id,)
+            ).fetchall()
+            return [dict(row) for row in rows]
         finally:
             conn.close()
 

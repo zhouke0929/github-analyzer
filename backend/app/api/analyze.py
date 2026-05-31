@@ -241,13 +241,24 @@ async def get_analysis_result(analysis_id: str):
     repo_info = json.loads(record["repo_info"]) if isinstance(record["repo_info"], str) else record["repo_info"]
     tech_stack = json.loads(record["tech_stack"]) if isinstance(record["tech_stack"], str) else record["tech_stack"]
 
+    # 获取默认分支名
+    owner = repo_info.get("owner")
+    repo = repo_info.get("repo")
+    default_branch = "main"
+    if owner and repo:
+        try:
+            default_branch = await github_service.get_default_branch(owner, repo)
+        except Exception:
+            pass
+
     result = {
         "id": analysis_id,
         "repo_info": repo_info,
         "summary": record["summary"],
         "readme_cn": record["readme_cn"],
         "tech_stack": tech_stack,
-        "analysis_mode": record.get("analysis_mode", "quick")
+        "analysis_mode": record.get("analysis_mode", "quick"),
+        "default_branch": default_branch
     }
 
     # 解析P1字段（如果存在）

@@ -10,10 +10,12 @@ import { ReadmeViewer } from "@/components/ReadmeViewer";
 import { IssuesAnalysisCard } from "@/components/IssuesAnalysisCard";
 import { ExportButton } from "@/components/ExportButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ChatPanel } from "@/components/ChatPanel";
 import { useAnalysis } from "@/hooks/useAnalysis";
+import { createQASession, sendQAMessage, type QAMessage } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GitBranch, ArrowLeft, AlertCircle, FolderOpen } from "lucide-react";
+import { GitBranch, ArrowLeft, AlertCircle, FolderOpen, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
@@ -26,13 +28,48 @@ export default function Home() {
     startAnalysisJob,
     reset,
   } = useAnalysis();
-  const [activeTab, setActiveTab] = useState("summary");
+  const [activeTab, setActiveTab] = useState("readme");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const progressPercent = status?.progress
     ? Math.round(
         (status.progress.completed / status.progress.total) * 100
       )
     : 0;
+
+  // 创建问答会话
+  const handleCreateSession = async () => {
+    if (!result) return;
+
+    setIsCreatingSession(true);
+    try {
+      const res = await createQASession(result.id);
+      if (res.code === 0 && res.data) {
+        setSessionId(res.data.session_id);
+      } else {
+        alert(res.message || "创建会话失败");
+      }
+    } catch {
+      alert("创建会话失败");
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
+
+  // 发送消息
+  const handleSendMessage = async (message: string): Promise<QAMessage> => {
+    if (!sessionId) {
+      throw new Error("会话不存在");
+    }
+
+    const res = await sendQAMessage(sessionId, message);
+    if (res.code === 0 && res.data) {
+      return res.data;
+    } else {
+      throw new Error(res.message || "发送消息失败");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -159,7 +196,23 @@ export default function Home() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 返回
               </Button>
-              <ExportButton result={result} />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="cursor-pointer"
+                  title="查看GitHub原项目"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const url = `https://github.com/${result.repo_info.owner}/${result.repo_info.repo}`;
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  }}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  GitHub
+                </Button>
+                <ExportButton result={result} />
+              </div>
             </div>
 
             {/* Summary Card */}
@@ -184,6 +237,9 @@ export default function Home() {
                     Issues 趋势
                   </TabsTrigger>
                 )}
+                <TabsTrigger value="qa" className="cursor-pointer">
+                  智能问答
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="readme">
@@ -202,6 +258,33 @@ export default function Home() {
                   <IssuesAnalysisCard issuesAnalysis={result.issues_analysis} />
                 </TabsContent>
               )}
+
+              <TabsContent value="qa">
+                {sessionId ? (
+                  <ChatPanel
+                    sessionId={sessionId}
+                    owner={result.repo_info.owner}
+                    repo={result.repo_info.repo}
+                    onSendMessage={handleSendMessage}
+                  />
+                ) : (
+                  <div className="text-center py-12">
+                    <Button
+                      onClick={handleCreateSession}
+                      disabled={isCreatingSession}
+                      className="cursor-pointer"
+                    >
+                      {isCreatingSession ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : null}
+                      {isCreatingSession ? "正在初始化..." : "开始智能问答"}
+                    </Button>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      首次使用需要索引代码，可能需要一些时间
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
             </Tabs>
           </section>
         )}
