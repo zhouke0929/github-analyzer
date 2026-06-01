@@ -119,14 +119,7 @@ EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 EMBEDDING_MODEL=text-embedding-v4
 ```
 
-**支持的 AI 提供商：**
-
-| 提供商 | Base URL | 模型示例 |
-|--------|----------|----------|
-| OpenAI | https://api.openai.com/v1 | gpt-4o-mini |
-| 通义千问 | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen-turbo |
-| DeepSeek | https://api.deepseek.com/v1 | deepseek-chat |
-| 智谱 AI | https://open.bigmodel.cn/api/paas/v4 | GLM-4.5-Air |
+> 所有兼容 OpenAI 接口的 AI 服务均可使用，只需修改 `OPENAI_BASE_URL` 和模型名称即可。
 
 ## 使用说明
 
