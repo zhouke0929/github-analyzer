@@ -23,9 +23,9 @@
 - **索引进度** - 实时显示代码索引状态
 
 ### 系统管理
-- **配置管理** - 支持多种 AI 提供商（OpenAI、通义千问、DeepSeek 等）
+- **可视化配置** - 在系统设置页面直接配置 API Key，无需手动编辑文件
+- **配置热更新** - 配置修改后立即生效，无需重启服务
 - **存储管理** - 数据大小查看、历史数据清理
-- **热更新** - 配置修改后立即生效
 
 ## 技术架构
 
@@ -39,7 +39,7 @@
 │                   Backend (FastAPI)                      │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐ │
 │  │ 分析引擎 │  │ Agent    │  │ RAG      │  │ 配置    │ │
-│  │          │  │ (LangGraph)│ │ (LangChain)│ │ 管理    │ │
+│  │          │  │(LangGraph)│ │(LangChain)│ │ 管理    │ │
 │  └──────────┘  └──────────┘  └──────────┘  └─────────┘ │
 └─────────────────────────┬───────────────────────────────┘
                           │
@@ -66,16 +66,15 @@
 git clone https://github.com/zhouke0929/github-analyzer.git
 cd github-analyzer
 
-# 2. 配置环境变量
-cp backend/.env.example backend/.env
-# 编辑 backend/.env，填入你的 API Key
-
-# 3. 启动服务
+# 2. 启动服务
 docker-compose up -d
 
-# 4. 访问应用
+# 3. 访问应用
 # 前端：http://localhost:3000
 # 后端：http://localhost:8001
+
+# 4. 配置 API Key
+# 访问 http://localhost:3000/settings，填入你的 API Key 即可使用
 ```
 
 ### 手动部署
@@ -90,43 +89,39 @@ cd github-analyzer
 # 2. 后端
 cd backend
 pip install -r requirements.txt
-cp .env.example .env
-# 编辑 .env 填入 API Key
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 # 3. 前端（新终端）
 cd frontend
 npm install
 npm run dev
+
+# 4. 配置 API Key
+# 访问 http://localhost:3000/settings，填入你的 API Key 即可使用
 ```
 
-## 环境变量配置
+## 配置说明
 
-在 `backend/.env` 中配置：
+启动后访问 **http://localhost:3000/settings** 进行可视化配置：
 
-```env
-# GitHub Token（可选，提高 API 限额）
-GITHUB_TOKEN=your_github_token
+| 配置项 | 说明 | 是否必填 |
+|--------|------|----------|
+| GitHub Token | 提高 API 限额（60→5000 次/小时） | 可选 |
+| 聊天模型 API Key | 用于项目分析和智能问答 | 必填 |
+| 聊天模型 Base URL | 兼容 OpenAI 接口的服务地址 | 必填 |
+| 聊天模型名称 | 如 gpt-4o-mini、mimo-v2.5 | 必填 |
+| 向量模型 API Key | 用于代码语义检索 | 必填 |
+| 向量模型 Base URL | 兼容 OpenAI 接口的服务地址 | 必填 |
+| 向量模型名称 | 如 text-embedding-v4 | 必填 |
 
-# AI 模型配置（必填，兼容 OpenAI 接口）
-OPENAI_API_KEY=your_api_key
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4o-mini
-
-# Embedding 模型配置（用于代码语义检索）
-EMBEDDING_API_KEY=your_embedding_key
-EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-EMBEDDING_MODEL=text-embedding-v4
-```
-
-> 所有兼容 OpenAI 接口的 AI 服务均可使用，只需修改 `OPENAI_BASE_URL` 和模型名称即可。
+> 所有兼容 OpenAI 接口的 AI 服务均可使用，只需修改 Base URL 和模型名称即可。
 
 ## 使用说明
 
-1. **分析项目**：在首页输入 GitHub 仓库地址，点击分析
-2. **查看结果**：查看翻译、摘要、技术栈、架构、Issues 分析
-3. **智能问答**：点击"开始对话"，等待代码索引完成，即可提问
-4. **系统设置**：在设置页面配置 API Key、模型、存储管理
+1. **配置 API Key**：首次使用请先访问系统设置页面配置 API Key
+2. **分析项目**：在首页输入 GitHub 仓库地址，点击分析
+3. **查看结果**：查看翻译、摘要、技术栈、架构、Issues 分析
+4. **智能问答**：点击"开始对话"，等待代码索引完成，即可提问
 
 ## 项目结构
 
