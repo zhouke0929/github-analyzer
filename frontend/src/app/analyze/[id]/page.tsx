@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   getProjectDetail,
   deleteProject,
@@ -28,52 +29,32 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-export default function AnalyzeDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+export default function AnalyzeDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("readme");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    // 从 localStorage 恢复 sessionId
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`qa-session-${id}`);
+    }
+    return null;
+  });
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  // 加载项目详情
-  const loadProject = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const res = await getProjectDetail(id);
-      if (res.code === 0 && res.data) {
-        // 检查是否是pending状态
-        if (res.data.status === "pending" || res.data.status === "processing") {
-          // 开始轮询等待分析完成
-          pollForCompletion(id);
-        } else {
-          setResult(res.data);
-          setIsLoading(false);
-        }
-      } else {
-        setError(res.message || "加载失败");
-        setIsLoading(false);
-      }
-    } catch {
-      setError("网络请求失败");
-      setIsLoading(false);
-    }
-  }, [id]);
-
-  // 轮询等待分析完成
+  // 轮询等待分析完成（必须在 loadProject 之前定义）
   const pollForCompletion = useCallback((projectId: string) => {
+    let isMounted = true;
     const interval = setInterval(async () => {
       try {
         const res = await getProjectDetail(projectId);
+        if (!isMounted) return;
+
         if (res.code === 0 && res.data) {
           if (res.data.status === "completed") {
             clearInterval(interval);
@@ -92,19 +73,60 @@ export default function AnalyzeDetailPage({
     }, 2000); // 每2秒检查一次
 
     // 5分钟后停止轮询
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       clearInterval(interval);
-      if (isLoading) {
+      if (isMounted) {
         setError("分析超时，请稍后刷新");
         setIsLoading(false);
       }
     }, 300000);
 
-    return () => clearInterval(interval);
-  }, [isLoading]);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  // 加载项目详情
+  const loadProject = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await getProjectDetail(id);
+      if (res.code === 0 && res.data) {
+        // 检查是否是pending状态
+        if (res.data.status === "pending" || res.data.status === "processing") {
+          // 开始轮询等待分析完成
+          const cleanup = pollForCompletion(id);
+          return cleanup;
+        } else {
+          setResult(res.data);
+          setIsLoading(false);
+        }
+      } else {
+        setError(res.message || "加载失败");
+        setIsLoading(false);
+      }
+    } catch {
+      setError("网络请求失败");
+      setIsLoading(false);
+    }
+  }, [id, pollForCompletion]);
 
   useEffect(() => {
-    loadProject();
+    let cleanup: (() => void) | undefined;
+
+    const load = async () => {
+      cleanup = await loadProject();
+    };
+
+    load();
+
+    return () => {
+      if (cleanup) cleanup();
+    };
   }, [loadProject]);
 
   // 删除项目
@@ -158,6 +180,8 @@ export default function AnalyzeDetailPage({
       const res = await createQASession(id);
       if (res.code === 0 && res.data) {
         setSessionId(res.data.session_id);
+        // 持久化 sessionId
+        localStorage.setItem(`qa-session-${id}`, res.data.session_id);
       } else {
         alert(res.message || "创建会话失败");
       }
@@ -169,14 +193,17 @@ export default function AnalyzeDetailPage({
   };
 
   // 发送消息
-  const handleSendMessage = async (message: string): Promise<QAMessage> => {
+  const handleSendMessage = async (message: string, signal?: AbortSignal): Promise<QAMessage> => {
     if (!sessionId) {
       throw new Error("会话不存在");
     }
 
-    const res = await sendQAMessage(sessionId, message);
+    const res = await sendQAMessage(sessionId, message, signal);
     if (res.code === 0 && res.data) {
       return res.data;
+    } else if (res.code === -2) {
+      // 请求被取消
+      throw new Error("请求已取消");
     } else {
       throw new Error(res.message || "发送消息失败");
     }

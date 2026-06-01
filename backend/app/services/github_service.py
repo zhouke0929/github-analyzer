@@ -207,7 +207,7 @@ class GitHubService:
             return []
 
     async def search_code(self, owner: str, repo: str, query: str, per_page: int = 10) -> list:
-        """搜索代码
+        """搜索代码（带行号提取）
 
         Args:
             owner: 仓库所有者
@@ -216,26 +216,45 @@ class GitHubService:
             per_page: 每页结果数量
 
         Returns:
-            搜索结果列表
+            搜索结果列表，包含 path, content, language, url, line_number
         """
         try:
             import urllib.parse
             encoded_query = urllib.parse.quote(f"{query} repo:{owner}/{repo}")
-            data = await self._request(f"/search/code?q={encoded_query}&per_page={per_page}")
+
+            # 使用 text_matches 头获取行号信息
+            headers = self._get_headers()
+            headers["Accept"] = "application/vnd.github.text-match+json"
+
+            async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
+                response = await client.get(
+                    f"{self.base_url}/search/code?q={encoded_query}&per_page={per_page}",
+                    headers=headers
+                )
+                if response.status_code == 404:
+                    raise Exception("仓库不存在或为私有仓库")
+                if response.status_code == 403:
+                    remaining = response.headers.get("X-RateLimit-Remaining", "0")
+                    if remaining == "0":
+                        raise Exception("GitHub API请求频率超限，请稍后重试或配置GITHUB_TOKEN提高限额")
+                    raise Exception("GitHub API访问被拒绝")
+                response.raise_for_status()
+                data = response.json()
 
             results = []
             items = data.get("items", [])
 
             for item in items:
-                # 获取文件内容
                 file_path = item.get("path", "")
                 content = await self.get_file_content(owner, repo, file_path)
+                line_number = self._extract_line_number(item)
 
                 results.append({
                     "path": file_path,
-                    "content": content[:500] if content else "",  # 限制内容长度
+                    "content": content[:500] if content else "",
                     "language": item.get("language", ""),
-                    "url": item.get("html_url", "")
+                    "url": item.get("html_url", ""),
+                    "line_number": line_number
                 })
 
             return results
@@ -243,6 +262,31 @@ class GitHubService:
         except Exception as e:
             print(f"[GitHub] 搜索代码失败: {e}")
             return []
+
+    def _extract_line_number(self, item: dict) -> int:
+        """从 GitHub 搜索结果的 text_matches 中提取行号"""
+        text_matches = item.get("text_matches", [])
+        if not text_matches:
+            return 0
+
+        # 使用第一个 text match 的 fragment 来定位行号
+        match = text_matches[0]
+        fragment = match.get("fragment", "")
+        matches = match.get("matches", [])
+
+        if not matches or not fragment:
+            return 0
+
+        # 获取第一个匹配在 fragment 中的字符位置
+        first_match = matches[0]
+        indices = first_match.get("indices", [[0, 0]])
+        if not indices:
+            return 0
+
+        char_pos = indices[0][0]
+        # 计算匹配位置之前的换行数
+        line_number = fragment[:char_pos].count('\n') + 1
+        return line_number
 
 
 # 全局实例

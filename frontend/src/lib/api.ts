@@ -107,7 +107,7 @@ export interface ApiResponse<T> {
 
 async function request<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit & { signal?: AbortSignal }
 ): Promise<ApiResponse<T>> {
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -116,6 +116,14 @@ async function request<T>(
     });
     return await res.json();
   } catch (error) {
+    // 如果是用户取消，返回特定错误
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        code: -2,
+        message: "请求已取消",
+        data: null,
+      };
+    }
     return {
       code: -1,
       message: error instanceof Error ? error.message : "网络请求失败",
@@ -245,11 +253,13 @@ export async function createQASession(
 
 export async function sendQAMessage(
   sessionId: string,
-  message: string
+  message: string,
+  signal?: AbortSignal
 ): Promise<ApiResponse<QAMessage>> {
   return request(`/api/qa/sessions/${sessionId}/messages`, {
     method: "POST",
     body: JSON.stringify({ message }),
+    signal,
   });
 }
 
@@ -257,4 +267,47 @@ export async function getQAHistory(
   sessionId: string
 ): Promise<ApiResponse<{ session_id: string; messages: QAMessage[] }>> {
   return request(`/api/qa/sessions/${sessionId}/history`);
+}
+
+// 索引状态相关接口
+
+export interface IndexProgress {
+  status: "indexing" | "completed" | "failed";
+  total: number;
+  current: number;
+  message: string;
+}
+
+export interface IndexStatus {
+  owner: string;
+  repo: string;
+  is_indexed: boolean;
+  collection_name: string;
+  document_count: number;
+  progress?: IndexProgress;
+}
+
+export async function getIndexStatus(
+  owner: string,
+  repo: string
+): Promise<ApiResponse<IndexStatus>> {
+  return request(`/api/qa/index-status/${owner}/${repo}`);
+}
+
+export async function reindexCode(
+  owner: string,
+  repo: string
+): Promise<ApiResponse<{ owner: string; repo: string; status: string }>> {
+  return request(`/api/qa/reindex/${owner}/${repo}`, {
+    method: "POST",
+  });
+}
+
+export async function cancelIndex(
+  owner: string,
+  repo: string
+): Promise<ApiResponse<{ owner: string; repo: string; status: string }>> {
+  return request(`/api/qa/cancel-index/${owner}/${repo}`, {
+    method: "POST",
+  });
 }

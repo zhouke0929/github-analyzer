@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, Send, Loader2, Bot, User } from "lucide-react";
+import { MessageSquare, Send, Loader2, Bot, User, Database, CheckCircle, AlertCircle, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import { getIndexStatus, getQAHistory, cancelIndex, type IndexStatus, type IndexProgress, type QAMessage } from "@/lib/api";
 
 interface Message {
   message_id: string;
@@ -22,14 +23,17 @@ interface ChatPanelProps {
   sessionId: string;
   owner: string;
   repo: string;
-  onSendMessage: (message: string) => Promise<Message>;
+  onSendMessage: (message: string, signal?: AbortSignal) => Promise<Message>;
 }
 
 export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
+  const [isIndexing, setIsIndexing] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // 滚动到底部
   const scrollToBottom = () => {
@@ -41,6 +45,82 @@ export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelPr
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 加载对话历史
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const res = await getQAHistory(sessionId);
+        if (res.code === 0 && res.data?.messages) {
+          const historyMessages: Message[] = res.data.messages.map((msg: QAMessage) => ({
+            message_id: msg.message_id,
+            role: msg.role,
+            content: msg.content,
+            references: msg.references,
+            tools_used: msg.tools_used,
+            created_at: msg.created_at,
+          }));
+          if (historyMessages.length > 0) {
+            setMessages(historyMessages);
+          }
+        }
+      } catch (error) {
+        console.error("加载对话历史失败:", error);
+      }
+    };
+
+    loadHistory();
+  }, [sessionId]);
+
+  // 轮询索引状态
+  useEffect(() => {
+    let isMounted = true;
+    let interval: NodeJS.Timeout | null = null;
+
+    const checkIndexStatus = async () => {
+      try {
+        const res = await getIndexStatus(owner, repo);
+        if (isMounted && res.code === 0 && res.data) {
+          setIndexStatus(res.data);
+          const indexing = res.data.is_indexed && res.data.document_count === 0;
+          setIsIndexing(indexing);
+
+          // 如果索引完成，停止轮询
+          if (!indexing && interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+        }
+      } catch (error) {
+        console.error("获取索引状态失败:", error);
+      }
+    };
+
+    // 立即检查一次
+    checkIndexStatus();
+
+    // 每 3 秒轮询一次（直到索引完成）
+    interval = setInterval(checkIndexStatus, 3000);
+
+    return () => {
+      isMounted = false;
+      if (interval) {
+        clearInterval(interval);
+      }
+      // 组件卸载时取消正在进行的索引
+      if (isIndexing) {
+        cancelIndex(owner, repo).catch(console.error);
+      }
+    };
+  }, [owner, repo, isIndexing]);
+
+  // 停止生成
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
 
   // 发送消息
   const handleSend = async () => {
@@ -57,20 +137,47 @@ export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelPr
     setInput("");
     setIsLoading(true);
 
+    // 创建新的 AbortController
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
-      const response = await onSendMessage(input);
-      setMessages((prev) => [...prev, response]);
+      const response = await onSendMessage(input, abortController.signal);
+      // 检查是否被取消
+      if (abortController.signal.aborted) {
+        const cancelMessage: Message = {
+          message_id: `cancel-${Date.now()}`,
+          role: "assistant",
+          content: "生成已停止。",
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, cancelMessage]);
+      } else {
+        setMessages((prev) => [...prev, response]);
+      }
     } catch (error) {
-      console.error("发送消息失败:", error);
-      const errorMessage: Message = {
-        message_id: `error-${Date.now()}`,
-        role: "assistant",
-        content: "抱歉，发送消息时出现错误，请重试。",
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      // 如果是取消操作，不显示错误
+      if (abortController.signal.aborted) {
+        const cancelMessage: Message = {
+          message_id: `cancel-${Date.now()}`,
+          role: "assistant",
+          content: "生成已停止。",
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, cancelMessage]);
+      } else {
+        console.error("发送消息失败:", error);
+        const errorMessage: Message = {
+          message_id: `error-${Date.now()}`,
+          role: "assistant",
+          content: "抱歉，发送消息时出现错误，请重试。",
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -100,6 +207,58 @@ export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelPr
         <p className="text-sm text-muted-foreground">
           关于 {owner}/{repo} 的代码问答
         </p>
+
+        {/* 索引状态指示器 */}
+        {indexStatus && (
+          <div className={`flex flex-col gap-1 text-xs px-3 py-2 rounded-md mt-2 ${
+            indexStatus.document_count > 0
+              ? "bg-green-50 text-green-700 border border-green-200"
+              : isIndexing
+                ? "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                : "bg-gray-50 text-gray-500 border border-gray-200"
+          }`}>
+            <div className="flex items-center gap-2">
+              <Database className="w-3.5 h-3.5" />
+              {indexStatus.document_count > 0 ? (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>代码索引就绪 ({indexStatus.document_count} 个文档块)</span>
+                </>
+              ) : isIndexing ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>正在索引代码...</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>代码未索引（语义搜索不可用）</span>
+                </>
+              )}
+            </div>
+            {/* 索引进度详情 */}
+            {indexStatus.progress && indexStatus.progress.status === "indexing" && (
+              <div className="ml-5">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-yellow-100 rounded-full h-1.5">
+                    <div
+                      className="bg-yellow-500 h-1.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${indexStatus.progress.total > 0
+                          ? (indexStatus.progress.current / indexStatus.progress.total * 100)
+                          : 0}%`
+                      }}
+                    />
+                  </div>
+                  <span className="text-yellow-600">
+                    {indexStatus.progress.current}/{indexStatus.progress.total}
+                  </span>
+                </div>
+                <p className="text-yellow-600 mt-0.5">{indexStatus.progress.message}</p>
+              </div>
+            )}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col p-0 min-h-0">
@@ -241,20 +400,27 @@ export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelPr
               className="flex-1 min-h-[60px] max-h-[120px]"
               disabled={isLoading}
             />
-            <Button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className="cursor-pointer"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
+            {isLoading ? (
+              <Button
+                onClick={handleStop}
+                variant="destructive"
+                className="cursor-pointer"
+                title="停止生成"
+              >
+                <Square className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="cursor-pointer"
+              >
                 <Send className="w-4 h-4" />
-              )}
-            </Button>
+              </Button>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            按 Enter 发送，Shift + Enter 换行
+            {isLoading ? "生成中...点击红色按钮停止" : "按 Enter 发送，Shift + Enter 换行"}
           </p>
         </div>
       </CardContent>
