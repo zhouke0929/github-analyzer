@@ -101,33 +101,61 @@ GitHub项目智能分析/
 
 ## 快速启动
 
-### 后端
+### 方式一：Docker 部署（推荐）
+
+**前提条件：** 安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ```bash
-cd backend
-pip install -r requirements.txt
-cp .env.example .env   # 配置 API 密钥
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+# 1. 克隆项目
+git clone https://github.com/你的用户名/github-analyzer.git
+cd github-analyzer
+
+# 2. 配置环境变量
+cp backend/.env.example backend/.env
+# 编辑 backend/.env，填入你的 API Key
+
+# 3. 一键启动
+docker-compose up -d
+
+# 4. 访问应用
+# 前端：http://localhost:3000
+# 后端：http://localhost:8001
 ```
 
-后端地址：http://localhost:8001
-API 文档：http://localhost:8001/docs
+**常用命令：**
+```bash
+docker-compose up -d        # 启动服务
+docker-compose down         # 停止服务
+docker-compose logs -f      # 查看日志
+docker-compose up -d --build  # 重新构建（代码更新后）
+```
 
-### 前端
+### 方式二：手动部署
+
+**前提条件：** Python 3.11+、Node.js 20+
 
 ```bash
+# 1. 克隆项目
+git clone https://github.com/你的用户名/github-analyzer.git
+cd github-analyzer
+
+# 2. 配置后端
+cd backend
+pip install -r requirements.txt
+cp .env.example .env
+# 编辑 .env，填入你的 API Key
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+
+# 3. 配置前端（新终端）
 cd frontend
 npm install
 npm run dev
 ```
 
-前端地址：http://localhost:3000
-
-### Docker 部署
-
-```bash
-docker-compose up -d
-```
+**访问地址：**
+- 前端：http://localhost:3000
+- 后端：http://localhost:8001
+- API 文档：http://localhost:8001/docs
 
 ## 环境变量配置
 
