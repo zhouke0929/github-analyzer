@@ -8,7 +8,7 @@ import { MessageSquare, Send, Loader2, Bot, User, Database, CheckCircle, AlertCi
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
-import { getIndexStatus, getQAHistory, cancelIndex, type IndexStatus, type IndexProgress, type QAMessage } from "@/lib/api";
+import { getIndexStatus, getQAHistory, cancelIndex, reindexCode, type IndexStatus, type IndexProgress, type QAMessage } from "@/lib/api";
 
 interface Message {
   message_id: string;
@@ -82,11 +82,13 @@ export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelPr
         const res = await getIndexStatus(owner, repo);
         if (isMounted && res.code === 0 && res.data) {
           setIndexStatus(res.data);
-          const indexing = res.data.is_indexed && res.data.document_count === 0;
+
+          // 判断是否正在索引：progress 存在且状态为 indexing
+          const indexing = !!(res.data.progress && res.data.progress.status === "indexing");
           setIsIndexing(indexing);
 
-          // 如果索引完成，停止轮询
-          if (!indexing && interval) {
+          // 如果索引完成（有文档且不在索引中），停止轮询
+          if (res.data.document_count > 0 && !indexing && interval) {
             clearInterval(interval);
             interval = null;
           }
@@ -107,18 +109,30 @@ export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelPr
       if (interval) {
         clearInterval(interval);
       }
-      // 组件卸载时取消正在进行的索引
-      if (isIndexing) {
-        cancelIndex(owner, repo).catch(console.error);
-      }
     };
-  }, [owner, repo, isIndexing]);
+  }, [owner, repo]);
 
   // 停止生成
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+    }
+  };
+
+  // 手动触发索引
+  const handleReindex = async () => {
+    try {
+      setIsIndexing(true);
+      await reindexCode(owner, repo);
+      // 重新检查索引状态
+      const res = await getIndexStatus(owner, repo);
+      if (res.code === 0 && res.data) {
+        setIndexStatus(res.data);
+      }
+    } catch (error) {
+      console.error("触发索引失败:", error);
+      setIsIndexing(false);
     }
   };
 
@@ -233,6 +247,14 @@ export function ChatPanel({ sessionId, owner, repo, onSendMessage }: ChatPanelPr
                 <>
                   <AlertCircle className="w-3.5 h-3.5" />
                   <span>代码未索引（语义搜索不可用）</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto cursor-pointer"
+                    onClick={handleReindex}
+                  >
+                    立即索引
+                  </Button>
                 </>
               )}
             </div>

@@ -15,7 +15,7 @@ import { useAnalysis } from "@/hooks/useAnalysis";
 import { createQASession, sendQAMessage, type QAMessage } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GitBranch, ArrowLeft, AlertCircle, FolderOpen, ExternalLink, Loader2 } from "lucide-react";
+import { GitBranch, ArrowLeft, AlertCircle, FolderOpen, ExternalLink, Loader2, Settings, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
@@ -87,6 +87,12 @@ export default function Home() {
               <Button variant="ghost" size="sm" className="cursor-pointer">
                 <FolderOpen className="w-4 h-4 mr-2" />
                 已分析项目
+              </Button>
+            </Link>
+            <Link href="/settings">
+              <Button variant="ghost" size="sm" className="cursor-pointer">
+                <Settings className="w-4 h-4 mr-2" />
+                系统设置
               </Button>
             </Link>
             <ThemeToggle />

@@ -89,6 +89,7 @@ export interface IssuesAnalysis {
 
 export interface AnalysisResult {
   id: string;
+  status: string;
   repo_info: RepoInfo;
   summary: string;
   readme_cn: string;
@@ -309,5 +310,89 @@ export async function cancelIndex(
 ): Promise<ApiResponse<{ owner: string; repo: string; status: string }>> {
   return request(`/api/qa/cancel-index/${owner}/${repo}`, {
     method: "POST",
+  });
+}
+
+// 系统配置相关接口
+
+export interface APIKeyConfig {
+  provider: string;
+  api_key: string;
+  base_url?: string;
+  model?: string;
+}
+
+export interface ModelConfig {
+  chat_model: string;
+  embedding_model: string;
+}
+
+export interface StorageInfo {
+  database: {
+    path: string;
+    size_bytes: number;
+    size_mb: number;
+  };
+  chromadb: {
+    path: string;
+    size_bytes: number;
+    size_mb: number;
+  };
+  total_size_mb: number;
+  project_count: number;
+}
+
+export interface ProvidersData {
+  providers: Record<string, {
+    name: string;
+    default_base_url: string;
+    models: string[];
+  }>;
+  embedding_models: Record<string, {
+    name: string;
+    models: string[];
+  }>;
+}
+
+export async function getProviders(): Promise<ApiResponse<ProvidersData>> {
+  return request("/api/config/providers");
+}
+
+export async function getAPIKeys(): Promise<ApiResponse<Record<string, string>>> {
+  return request("/api/config/keys");
+}
+
+export async function updateAPIKey(config: APIKeyConfig): Promise<ApiResponse<null>> {
+  return request("/api/config/keys", {
+    method: "POST",
+    body: JSON.stringify(config),
+  });
+}
+
+export async function testAPIKey(provider: string, apiKey: string, baseUrl?: string): Promise<ApiResponse<{ valid: boolean }>> {
+  return request("/api/config/test", {
+    method: "POST",
+    body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
+  });
+}
+
+export async function getStorageInfo(): Promise<ApiResponse<StorageInfo>> {
+  return request("/api/config/storage");
+}
+
+export async function cleanupOldData(days: number = 30): Promise<ApiResponse<{ deleted_count: number }>> {
+  return request(`/api/config/cleanup?days=${days}`, {
+    method: "POST",
+  });
+}
+
+export async function getModelConfig(): Promise<ApiResponse<ModelConfig & { ai_provider: string }>> {
+  return request("/api/config/models");
+}
+
+export async function updateModelConfig(config: ModelConfig): Promise<ApiResponse<null>> {
+  return request("/api/config/models", {
+    method: "POST",
+    body: JSON.stringify(config),
   });
 }

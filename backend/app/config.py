@@ -1,6 +1,6 @@
 """应用配置管理"""
 from pydantic_settings import BaseSettings
-from functools import lru_cache
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     claude_api_key: str = ""
 
+    # Embedding模型配置
+    embedding_api_key: str = ""
+    embedding_base_url: str = "https://api.openai.com/v1"
+    embedding_model: str = "text-embedding-3-small"
+
     # 数据库配置
     database_url: str = "sqlite:///./data/analyzer.db"
 
@@ -31,6 +36,6 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
 
 
-@lru_cache()
 def get_settings() -> Settings:
+    """获取配置（每次调用都重新加载，支持热更新）"""
     return Settings()

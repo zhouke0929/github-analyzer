@@ -71,15 +71,13 @@ class RAGService:
 
     @property
     def embeddings(self):
-        """懒加载 Embedding 模型"""
-        if self._embeddings is None:
-            settings = get_settings()
-            self._embeddings = DashScopeEmbeddings(
-                api_key=settings.embedding_api_key,
-                base_url=settings.embedding_base_url,
-                model=settings.embedding_model
-            )
-        return self._embeddings
+        """每次获取配置都重新创建 Embedding 模型（支持热更新）"""
+        settings = get_settings()
+        return DashScopeEmbeddings(
+            api_key=settings.embedding_api_key,
+            base_url=settings.embedding_base_url,
+            model=settings.embedding_model
+        )
 
     @property
     def text_splitter(self):

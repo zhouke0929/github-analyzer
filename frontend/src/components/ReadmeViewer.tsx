@@ -14,9 +14,9 @@ interface ReadmeViewerProps {
 }
 
 // 将相对路径图片转换为GitHub raw URL
-function resolveImageUrl(src: string | undefined, owner?: string, repo?: string, defaultBranch: string = "main"): string {
-  // 如果没有src，返回空字符串
-  if (!src) return "";
+function resolveImageUrl(src: string | Blob | undefined, owner?: string, repo?: string, defaultBranch: string = "main"): string {
+  // 如果没有src或是Blob类型，返回空字符串
+  if (!src || src instanceof Blob) return "";
 
   // 如果没有owner或repo，直接返回原src
   if (!owner || !repo) return src;
